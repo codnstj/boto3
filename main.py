@@ -4,15 +4,13 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import boto3
 import requests
+from botocore.config import Config
 
 
 region = requests.get('http://169.254.169.254/latest/meta-data/placement/region').text
-bucket = BUCKET_NAME
-
+bucket = "presigned-bucket43879c71-uhner45eblb9"
 app = FastAPI()
-
 origins = ["*"]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -20,7 +18,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 class S3Object(BaseModel):
     file_name: str
@@ -31,12 +28,18 @@ def root():
     return {"bucket_name": bucket}
 
 
+def create_presigned_post ( bucket_name ,  object_name , fields = None ,  conditions = None ,  expiration = 3600 ):
+        s3_client = boto3.client("s3", region_name=region, config=Config(signature_version='s3v4', s3={'addressing_style': 'virtual'}))
+        response = s3_client.generate_presigned_post(bucket_name, object_name, Fields=fields, Conditions=conditions, ExpiresIn=expiration)
+        return response
+
+
 @app.post("/upload")
 def upload(object: S3Object):
     ## Boto3를 이용해서 파일 업로드에 사용할 미리 서명된 URL을 받아서 반환하세요. SDK에서 반환되는 응답을 그대로 반환하면 돱니다.
     key = object.file_name
+    object_name = key
+    response = create_presigned_post(bucket, object_name)
     return response
-
-
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+   uvicorn.run(app, host="0.0.0.0", port=5000)
